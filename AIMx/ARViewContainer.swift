@@ -26,7 +26,7 @@ struct ARViewContainer: UIViewRepresentable {
     @Binding var yawDegrees: Double   // around world Y
     @Binding var pitchDegrees: Double // around model local X
     
-    @Binding var aputapped: Bool
+    @Binding var aputapped: Int
 
     func makeCoordinator() -> Coordinator { Coordinator(aputapped: $aputapped) }
 
@@ -88,10 +88,10 @@ struct ARViewContainer: UIViewRepresentable {
         var lastPlaceHandled = 0
         var lastResetHandled = 0
         
-        // Binding to communicate back to SwiftUI
-        var aputapped: Binding<Bool>
+        // Binding to communicate back to SwiftUI (increments on each tap)
+        var aputapped: Binding<Int>
         
-        init(aputapped: Binding<Bool>) {
+        init(aputapped: Binding<Int>) {
             self.aputapped = aputapped
         }
 
@@ -139,9 +139,11 @@ struct ARViewContainer: UIViewRepresentable {
             let point = sender.location(in: arView)
 
             if isTouchOnPlacedModel(point, in: arView) {
-                aputapped.wrappedValue.toggle()
+                aputapped.wrappedValue += 1  // Increment count on each tap
+                print("🎯 APU model tapped! New count: \(aputapped.wrappedValue)")
                 return
             }
+            print("👆 Tap on background (not on model)")
 
             if let hit = arView.raycast(from: point,
                                         allowing: .estimatedPlane,
@@ -237,12 +239,19 @@ struct ARViewContainer: UIViewRepresentable {
 
         /// Returns true if the touch lands on the placed model (any descendant).
         private func isTouchOnPlacedModel(_ point: CGPoint, in arView: ARView) -> Bool {
-            guard let hitEntity = arView.entity(at: point), let root = placedModel else { return false }
+            guard let hitEntity = arView.entity(at: point), let root = placedModel else { 
+                print("🔍 Hit test: No entity or no model placed")
+                return false 
+            }
             var node: Entity? = hitEntity
             while let n = node {
-                if n == root { return true }
+                if n == root { 
+                    print("🔍 Hit test: Found APU model!")
+                    return true 
+                }
                 node = n.parent
             }
+            print("🔍 Hit test: Hit entity '\(hitEntity.name)', but not the APU model")
             return false
         }
 
@@ -255,10 +264,8 @@ struct ARViewContainer: UIViewRepresentable {
         /// Prevent tap-to-place when touching the model (avoid “jump” on tap).
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldReceive touch: UITouch) -> Bool {
-            guard gestureRecognizer is UITapGestureRecognizer,
-                  let arView = self.arView else { return true }
-            let pt = touch.location(in: arView)
-            return !isTouchOnPlacedModel(pt, in: arView)
+            // Always allow taps - handleTap method will check if it's on the model
+            return true
         }
 
         // MARK: - Reset

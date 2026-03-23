@@ -17,8 +17,8 @@ struct ContentView: View {
 
     // "Show Info" is your mode toggle; the card appears when APU is tapped
     @State private var showInfoCard = false
-    // Set by ARViewContainer when the APU model is tapped (we toggle this every tap)
-    @State private var lastAPUTapped = false
+    // Set by ARViewContainer when the APU model is tapped (we increment this every tap)
+    @State private var lastAPUTapped = 0
 
     // ---- Manual drag offset ----
     @State private var manualOffset: CGSize = .zero
@@ -59,17 +59,32 @@ struct ContentView: View {
                 aputapped: $lastAPUTapped
             )
             .ignoresSafeArea()
-            // When the APU is tapped (value toggles each time), if "Show Info" mode is ON,
+            // When the APU is tapped (value increments each time), if "Show Info" mode is ON,
             // pick a new random row for the card. This *only* changes the card contents.
-            .onChange(of: lastAPUTapped) { _ in
-                guard showInfoCard else { return }
-                guard !demoRows.isEmpty else { currentInfoRow = nil; return }
+            .onChange(of: lastAPUTapped) { newValue in
+                print("🟣 ContentView.onChange(lastAPUTapped): \(newValue), showInfoCard=\(showInfoCard)")
+                guard newValue > 0 else { return } // Only react to actual taps
+                guard showInfoCard else { 
+                    print("⚠️ APU tapped but showInfoCard is OFF, ignoring")
+                    return 
+                }
+                guard !demoRows.isEmpty else { 
+                    print("⚠️ No demo rows available")
+                    currentInfoRow = nil
+                    return 
+                }
+                
                 var next = demoRows.randomElement()!
                 if let current = currentInfoRow, demoRows.count > 1 {
                     // Avoid showing the same row twice in a row if possible
-                    while next.id == current.id { next = demoRows.randomElement()! }
+                    var attempts = 0
+                    while next.id == current.id && attempts < 10 { 
+                        next = demoRows.randomElement()!
+                        attempts += 1
+                    }
                 }
                 currentInfoRow = next
+                print("🟢 Selected row -> Item: \(next.item), P/N: \(next.pn), Life Limit: \(next.lifeLimit), APU Cycles Remaining: \(next.apuCyclesRemaining)")
             }
 
             // ===========================================
@@ -78,7 +93,9 @@ struct ContentView: View {
             VStack {
                 HStack {
                     Button {
+                        print("🔵 Menu button tapped! Before toggle showMenu=\(showMenu)")
                         withAnimation(.spring()) { showMenu.toggle() }
+                        print("🔵 Menu button toggled. After toggle showMenu=\(showMenu)")
                     } label: {
                         HStack {
                             Text("Menu")
@@ -95,6 +112,7 @@ struct ContentView: View {
                 .padding(.top, 12)
                 Spacer()
             }
+            .zIndex(6) // Above menu dropdown (5), below manual (10)
 
             // =====================================================
             // MARK: Compact left-side menu (anchored under "Menu")
@@ -102,6 +120,7 @@ struct ContentView: View {
             if showMenu {
                 VStack(spacing: 8) {
                     Button {
+                        print("📘 Show Manuals tapped")
                         showManual = true
                         withAnimation { showMenu = false }
                     } label: {
@@ -111,6 +130,7 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
 
                     Button {
+                        print("💡 Show Info tapped (enabling info mode)")
                         // Enter "Show Info" mode. The card appears when you tap the APU.
                         showInfoCard = true
                         withAnimation { showMenu = false }
@@ -148,6 +168,7 @@ struct ContentView: View {
                         .onEnded { value in
                             manualOffset.width  += value.translation.width
                             manualOffset.height += value.translation.height
+                            print("📄 Manual dragged. New offset = \(manualOffset)")
                         }
                 )
                 .transition(.scale)
@@ -155,16 +176,17 @@ struct ContentView: View {
             }
 
             // =====================================================
-            // MARK: Info Card — shown when Show Info is ON *and*
-            //       the APU has just been tapped in AR
+            // MARK: Info Card — shown when Show Info mode is ON
+            //       (blank at first, fills with data after tapping APU)
             // =====================================================
-            if showInfoCard && lastAPUTapped {
+            if showInfoCard {
                 VStack {
                     Spacer()
                     APUInfoCard(showInfoCard: $showInfoCard, row: currentInfoRow)
                         .padding(.bottom, 40)
                 }
                 .transition(.opacity)
+                .zIndex(3) // Below menu, above sliders
             }
 
             // ==========================================
@@ -176,6 +198,7 @@ struct ContentView: View {
                 placeRequest: $placeRequest,
                 resetRequest: $resetRequest
             )
+            .zIndex(1) // Below menu and info card
         }
     }
 }
@@ -197,6 +220,7 @@ struct RotationSliders: View {
                 HStack(spacing: 12) {
                     Button("Place APU") {
                         placeRequest += 1
+                        print("🟩 Place APU tapped. placeRequest=\(placeRequest)")
                     }
                     .buttonStyle(.borderedProminent)
 
@@ -204,6 +228,7 @@ struct RotationSliders: View {
                         resetRequest += 1
                         yawDeg = 0
                         pitchDeg = 0
+                        print("🟥 Reset tapped. resetRequest=\(resetRequest) | yaw=0 pitch=0")
                     }
                     .buttonStyle(.bordered)
                 }
@@ -213,9 +238,11 @@ struct RotationSliders: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.left.and.right")
                         .font(.caption)
-                    Slider(value: $yawDeg, in: -180...180, step: 1)
-                        .frame(width: 450)
-                        .controlSize(.regular)
+                    Slider(value: $yawDeg, in: -180...180, step: 1, onEditingChanged: { editing in
+                        if !editing { print("↔️ Yaw changed to \(Int(yawDeg))°") }
+                    })
+                    .frame(width: 450)
+                    .controlSize(.regular)
                     Text("\(Int(yawDeg))°")
                         .font(.footnote.monospacedDigit())
                         .frame(width: 40)
@@ -241,10 +268,12 @@ struct RotationSliders: View {
 
                         // Wrapper keeps the card narrow; slider rotates inside
                         ZStack {
-                            Slider(value: $pitchDeg, in: -180...180, step: 1)
-                                .rotationEffect(.degrees(-90))
-                                .frame(width: length, height: thickness) // pre-rotation size
-                                .controlSize(.regular)
+                            Slider(value: $pitchDeg, in: -180...180, step: 1, onEditingChanged: { editing in
+                                if !editing { print("↕️ Pitch changed to \(Int(pitchDeg))°") }
+                            })
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: length, height: thickness) // pre-rotation size
+                            .controlSize(.regular)
                         }
                         .frame(width: thickness, height: length) // what the parent sees
                         .clipped()                                // trim overflow
@@ -278,6 +307,7 @@ struct PDFDraggableCard: View {
                 Spacer()
                 Button {
                     withAnimation { showManual = false }
+                    print("📕 Closed Manual")
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title2)
@@ -308,7 +338,12 @@ struct PDFKitSinglePageView: UIViewRepresentable {
     let url: URL
     func makeUIView(context: Context) -> PDFView {
         let pdfView = PDFView()
-        pdfView.document = PDFDocument(url: url)
+        if let doc = PDFDocument(url: url) {
+            pdfView.document = doc
+            print("📄 Loaded PDF with \(doc.pageCount) page(s)")
+        } else {
+            print("❌ Failed to load PDF at URL: \(url)")
+        }
         pdfView.displayMode = .singlePageContinuous
         pdfView.autoScales = true
         pdfView.backgroundColor = .clear
@@ -331,6 +366,7 @@ struct APUInfoCard: View {
                 Spacer()
                 Button {
                     withAnimation { showInfoCard = false }
+                    print("ℹ️ Closed Info card")
                 } label: {
                     Image(systemName: "xmark.circle.fill").font(.title2)
                 }
