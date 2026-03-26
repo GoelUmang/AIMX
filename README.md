@@ -7,7 +7,7 @@
 ## Demo
 
 <!-- Demo video showing APU placement, gesture manipulation, and the info panel -->
-<video src="https://github.com/GoelUmang/AIMX/raw/main/demo_AIMX.mov" controls="controls" muted="muted" playsinline="playsinline" style="max-width: 100%; height: auto;"></video>
+https://github.com/GoelUmang/AIMX/raw/main/demo_AIMX.mov
 
 ---
 
