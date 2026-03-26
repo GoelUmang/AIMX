@@ -6,10 +6,8 @@
 
 ## Demo
 
-<!-- Insert demo video or GIF here — e.g., showing APU placement, gesture manipulation, and the info panel -->
-![753E70B5-123D-4AE9-A7BF-7E7AB9827FE7_4_5005_c](https://github.com/user-attachments/assets/699f63f9-05e4-4145-a4db-c5a325f09fcd)
-
-![Demo](demo.gif)
+<!-- Demo video showing APU placement, gesture manipulation, and the info panel -->
+<video src="https://github.com/GoelUmang/AIMX/raw/main/demo_AIMX.mov" controls="controls" muted="muted" playsinline="playsinline" style="max-width: 100%; height: auto;"></video>
 
 ---
 
